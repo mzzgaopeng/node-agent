@@ -1,6 +1,26 @@
 package underscore
 
-import "reflect"
+import (
+	"reflect"
+)
+
+func (m *query) Find(predicate interface{}) IQuery {
+	var ok bool
+	each(m.Source, predicate, func(resRV, valueRV, _ reflect.Value) bool {
+		ok = resRV.Bool()
+		if ok {
+			m.Source = valueRV.Interface()
+		}
+		return ok
+	})
+	return m
+}
+
+func (m *query) FindBy(properties map[string]interface{}) IQuery {
+	return m.Find(func(value, _ interface{}) bool {
+		return IsMatch(value, properties)
+	})
+}
 
 func (m enumerable) Find(predicate interface{}) IEnumerable {
 	iterator := m.GetEnumerator()
@@ -11,8 +31,8 @@ func (m enumerable) Find(predicate interface{}) IEnumerable {
 			iterator.GetKey(),
 		})
 		if returnRVs[0].Bool() {
-			return chainFromRV(
-				iterator.GetValue(),
+			return Chain2(
+				iterator.GetValue().Interface(),
 			)
 		}
 	}

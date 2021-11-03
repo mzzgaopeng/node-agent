@@ -1,6 +1,8 @@
 package underscore
 
-import "reflect"
+import (
+	"reflect"
+)
 
 type facade struct {
 	Real reflect.Value

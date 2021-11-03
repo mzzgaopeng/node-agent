@@ -3,8 +3,8 @@ package lock
 import (
 	"context"
 	"fmt"
-	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/pkg/transport"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"time"
 )

@@ -2,6 +2,13 @@ package underscore
 
 import "reflect"
 
+func (m *query) Keys() IQuery {
+	m.Source = m.Map(func(_, key interface{}) facade {
+		return facade{reflect.ValueOf(key)}
+	})
+	return m
+}
+
 func (m enumerable) Keys() IEnumerable {
 	return enumerable{
 		Enumerator: func() IEnumerator {

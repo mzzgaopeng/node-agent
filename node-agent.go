@@ -1,11 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"go.uber.org/zap"
+	clientset "harmonycloud.cn/agents/node-agent/pkg/client/clientset/versioned"
 	"harmonycloud.cn/agents/node-agent/pkg/util"
-	clientset "harmonycloud.cn/common/hlease/pkg/client/clientset/versioned"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//_ "net/http/pprof"
@@ -21,7 +22,7 @@ import (
 	"sync"
 )
 
-var Version string = "3"
+var Version string = "4"
 
 func main() {
 	args := os.Args
@@ -195,7 +196,7 @@ func main() {
 		}
 
 		// checkNodeTaint
-		node, err := client.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+		node, err := client.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 
 		if err != nil {
 			logger.Error("get Node fails: " + err.Error())
@@ -299,7 +300,7 @@ func main() {
 
 		if nodeStatus == false || !edgeCoreStatus || !edgeProxyStatus {
 			// checkNodeTaint
-			node, err := client.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+			node, err := client.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 
 			if err != nil {
 				logger.Error("get Node fails: " + err.Error())

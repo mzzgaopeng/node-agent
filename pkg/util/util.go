@@ -2,19 +2,19 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	ud "github.com/ahl5esoft/golang-underscore"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	hleasev1 "harmonycloud.cn/agents/node-agent/pkg/apis/hlease/v1alpha1"
+	clientset "harmonycloud.cn/agents/node-agent/pkg/client/clientset/versioned"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	//"gopkg.in/natefinch/lumberjack.v2"
 	"harmonycloud.cn/agents/node-agent/pkg/lock"
-	hleasev1 "harmonycloud.cn/common/hlease/pkg/apis/hlease/v1alpha1"
-	clientset "harmonycloud.cn/common/hlease/pkg/client/clientset/versioned"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -68,7 +68,7 @@ func AddErrorTaintToNode(node *apiv1.Node, client kubernetes.Interface, taintEff
 	logger := zap.L()
 
 	// fetch the latest version of the node to avoid conflict
-	updatedNode, err := client.CoreV1().Nodes().Get(node.Name, metav1.GetOptions{})
+	updatedNode, err := client.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
 	if err != nil || updatedNode == nil {
 		return node, fmt.Errorf("failed to get node %v: %v", node.Name, err)
 	}
@@ -101,7 +101,7 @@ func AddErrorTaintToNode(node *apiv1.Node, client kubernetes.Interface, taintEff
 
 	patchData := map[string]interface{}{"spec": map[string]interface{}{"taints": updatedNode.Spec.Taints}}
 	patchDataBytes, _ := json.Marshal(patchData)
-	updatedNodeWithTaint, err := client.CoreV1().Nodes().Patch(node.Name, types.MergePatchType, patchDataBytes)
+	updatedNodeWithTaint, err := client.CoreV1().Nodes().Patch(context.TODO(), node.Name, types.MergePatchType, patchDataBytes, metav1.PatchOptions{})
 	if err != nil || updatedNodeWithTaint == nil {
 		return updatedNode, fmt.Errorf("failed to update node %v after adding taint: %v", updatedNode.Name, err)
 	}
@@ -132,7 +132,7 @@ func FetchLock(etcdips []string, ttl int64, nodename string, protocol Protocol,
 
 func EventRecorder(client *kubernetes.Clientset, name string, message string, reason string) {
 	logger := zap.L()
-	node, err := client.CoreV1().Nodes().Get(name, metav1.GetOptions{})
+	node, err := client.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 
 	if err != nil {
 		logger.Error(err.Error())
@@ -158,7 +158,7 @@ func GetZKAddr(client *kubernetes.Clientset, nodeName string) map[string][]strin
 	dubboLabels := "monitor-type-thread-dubbo-pool=enable"
 	zkPodUnionMap := make(map[string][]string)
 
-	pods, err := client.CoreV1().Pods("").List(metav1.ListOptions{
+	pods, err := client.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + nodeName, LabelSelector: dubboLabels})
 	if err != nil {
 		logger.Error("List Pods of nodeName " + nodeName + " error: " + err.Error())
@@ -242,7 +242,7 @@ func ReportError(c chan string, client *kubernetes.Clientset, name string, reaso
 }
 
 func InitHlease(isolateClientSet clientset.Interface, nodeName string) (*hleasev1.HLease, error) {
-	hlease, err := isolateClientSet.IsolateV1alpha1().HLeases("default").Get(nodeName, metav1.GetOptions{})
+	hlease, err := isolateClientSet.IsolateV1alpha1().HLeases("default").Get(context.TODO(), nodeName, metav1.GetOptions{})
 
 	if err != nil {
 		message := err.Error()
@@ -253,7 +253,7 @@ func InitHlease(isolateClientSet clientset.Interface, nodeName string) (*hleasev
 				Namespace: "default",
 			}, Spec: hleasev1.HLeaseSpec{Switch: "ON", LastHeartbeatTime: metav1.Now()}}
 
-			return isolateClientSet.IsolateV1alpha1().HLeases("default").Create(&newhlease)
+			return isolateClientSet.IsolateV1alpha1().HLeases("default").Create(context.TODO(), &newhlease, metav1.CreateOptions{})
 		}
 
 		return nil, err
@@ -266,13 +266,13 @@ func UpdateBeats(isolateClientSet clientset.Interface, nodeName string) {
 	logger := zap.L()
 
 	for {
-		hlease, err := isolateClientSet.IsolateV1alpha1().HLeases("default").Get(nodeName, metav1.GetOptions{})
+		hlease, err := isolateClientSet.IsolateV1alpha1().HLeases("default").Get(context.TODO(), nodeName, metav1.GetOptions{})
 		if err != nil {
 			logger.Error("get beats fail: " + err.Error())
 		}
 		hlease.Spec.LastHeartbeatTime = metav1.Now()
 
-		_, err = isolateClientSet.IsolateV1alpha1().HLeases("default").Update(hlease)
+		_, err = isolateClientSet.IsolateV1alpha1().HLeases("default").Update(context.TODO(), hlease, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error("update beats fail: " + err.Error())
 		}
@@ -342,7 +342,7 @@ func FormatMessage(healthProbe sync.Map) string {
 		return true
 	})
 
-	ud.Chain(probes).Filter(func(s Probe, _ int) bool {
+	ud.Chain2(probes).Filter(func(s Probe, _ int) bool {
 		return !s.Result
 	}).Map(func(s Probe, _ int) string {
 		return s.Name + " down"
@@ -406,14 +406,14 @@ func ChangeSwitch(isolateclientset clientset.Interface, nodeName string) {
 	retries := 3
 
 	for retries > 0 {
-		hlease, err := isolateclientset.IsolateV1alpha1().HLeases("default").Get(nodeName, metav1.GetOptions{})
+		hlease, err := isolateclientset.IsolateV1alpha1().HLeases("default").Get(context.TODO(), nodeName, metav1.GetOptions{})
 		if err != nil {
 			logger.Error("get hlease fails: " + err.Error())
 			retries -= 1
 			continue
 		}
 		hlease.Spec.Switch = "OFF"
-		_, err = isolateclientset.IsolateV1alpha1().HLeases("default").Update(hlease)
+		_, err = isolateclientset.IsolateV1alpha1().HLeases("default").Update(context.TODO(), hlease, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error("update hlease switch fail: " + err.Error())
 			retries -= 1
