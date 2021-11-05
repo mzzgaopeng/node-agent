@@ -164,7 +164,7 @@ func main() {
 	util.GetProbesPid(&healthProbe)
 
 	logger.Info("ClusterVersion: " + clusterVersion)
-	if clusterVersion == "2" {
+	if clusterVersion == "2" || clusterVersion == "4" {
 		healthProbe.Store("felix",
 			util.Probe{"felix", "exec", "calico-node", 1, 3, felixChannel, true, util.ProcessState{Path: "status"}})
 		healthProbe.Store("confd",
@@ -221,8 +221,14 @@ func main() {
 		confdState, _ := healthProbe.Load("confd")
 		birdState, _ := healthProbe.Load("bird")
 		felixState, _ := healthProbe.Load("felix")
-		calicoState := confdState.(util.Probe).Result && birdState.(util.Probe).Result &&
-			felixState.(util.Probe).Result
+
+		var calicoState bool
+		if clusterVersion == "4" {
+			calicoState = felixState.(util.Probe).Result
+		} else {
+			calicoState = confdState.(util.Probe).Result && birdState.(util.Probe).Result &&
+				felixState.(util.Probe).Result
+		}
 
 		nodeStatus = dockerState.(util.Probe).Result && (containerdState.(util.Probe).Result &&
 			kubeletState.(util.Probe).Result || calicoState)
